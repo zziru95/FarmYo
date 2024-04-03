@@ -25,6 +25,7 @@ export default function Room() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const stompClient = useRef(null);
   const messageEndRef = useRef(null);
+  const im = jwtDecode(localStorage.getItem('access')).userJob
   const checkRead = () => {
     api.get(`chats/message/${chatId}`)
     .then(res => console.log("성공"))
@@ -198,7 +199,7 @@ export default function Room() {
           <div className="text-lg flex items-center font-bold ml-5">{partnerInfo.userNickname}</div>
         </div>
         {/* 아래거래하기버튼은 판매자만보이게 */}
-        <div className="flex items-center">
+        {im === 1 && (<div className="flex items-center">
           <button className="btn" style={{ backgroundColor: buttonBgcolor }}>
             <div
               className="font-bold text-md"
@@ -208,10 +209,10 @@ export default function Room() {
               {buttonText}
             </div>
           </button>
-        </div>
+        </div>)}
       </div>
       {/* 거래하기눌렀을때 입력폼- 판매게시판에서 만든 채팅은 작물명X,구매게시판에서 만든채팅은 작물명O*/}
-      {showForm && <Form onFormSubmit={handleFormSubmit} onCloseForm={closeForm} />}
+      {im === 1 && showForm && <Form onFormSubmit={handleFormSubmit} onCloseForm={closeForm} />}
 
       {/* 대화말풍선 - 나 */}
       {/* 대화말풍선 - 상대방 */}
