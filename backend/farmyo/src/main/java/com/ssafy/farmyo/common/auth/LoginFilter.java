@@ -104,7 +104,10 @@ public class LoginFilter extends UsernamePasswordAuthenticationFilter {
 
         //토큰 생성
         String access = jwtUtil.createJwt("access", username, nickname, id,  job, 86400000L);
+//        String access = jwtUtil.createJwt("access", username, nickname, id,  job, 600000L);
         String refresh = jwtUtil.createJwt("refresh", username, nickname, id, job,  86400000L);
+
+
 
         // Refresh 토큰 Redis 저장
         refreshTokenRepository.save(new RefreshToken(refresh, username, access));

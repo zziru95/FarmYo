@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import SockJS from 'sockjs-client';
-import { Stomp } from '@stomp/stompjs';
-
-import Back from '../../../image/component/leftarrow.png';
-import Photo from '../../../image/component/me.png';
-import Form from '../form/index';
-import Vector from '../../../image/component/Vector.png';
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import SockJS from "sockjs-client";
+import { Stomp } from "@stomp/stompjs";
+import "../../../css/chat.css";
+import Back from "../../../image/component/leftarrow.png";
+import Photo from "../../../image/component/me.png";
+import Form from "../form/index";
+import Vector from "../../../image/component/Vector.png";
+import { jwtDecode } from "jwt-decode";
+import api from "../../../api/api";
 
 export default function Room() {
   const navigate = useNavigate();
@@ -14,25 +16,39 @@ export default function Room() {
   const [talk, setTalk] = useState("");
   const [messages, setMessages] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [buttonText, setButtonText] = useState('거래하기');
-  const [buttonBgcolor, setButtonBgcolor] = useState('#1B5E20');
+  const [buttonText, setButtonText] = useState("거래하기");
+  const [buttonBgcolor, setButtonBgcolor] = useState("#1B5E20");
   const textRef = useRef(null);
-  const [width, setWidth] = useState(120); 
+  const [width, setWidth] = useState(120);
   const textRef2 = useRef(null);
-  const [width2, setWidth2] = useState(120); 
+  const [width2, setWidth2] = useState(120);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const stompClient = useRef(null);
+  const messageEndRef = useRef(null);
+  const checkRead = () => {
+    api.get(`chats/message/${chatId}`)
+    .then(res => console.log("성공"))
+    .catch(err => console.error(err))
+  }
 
   useEffect(() => {
-    const socket = new SockJS('https://j10d209.p.ssafy.io/api/ws/chat');
+    checkRead()
+    return () => {
+      checkRead()
+    }
+  }, [])
+
+  useEffect(() => {
+    const socket = new SockJS("https://j10d209.p.ssafy.io/api/ws/chat");
     stompClient.current = Stomp.over(socket);
 
-    stompClient.current.connect({}, function(frame) {
-      console.log('Connected: ' + frame);
+    stompClient.current.connect({}, function (frame) {
+      console.log("Connected: " + frame);
 
-      stompClient.current.subscribe(`/sub/chat/room/${chatId}`, function(message) {
+      stompClient.current.subscribe(`/sub/chat/room/${chatId}`, function (message) {
         const newMessage = JSON.parse(message.body);
-        setMessages(prevMessages => [...prevMessages, newMessage]);
+        setMessages((prevMessages) => [...prevMessages, newMessage]);
+        console.log(messages);
       });
     });
 
@@ -43,88 +59,261 @@ export default function Room() {
     };
   }, [chatId]);
 
+  const myId = jwtDecode(localStorage.getItem("access")).userId;
   const sendMessage = () => {
-    if (stompClient.current && stompClient.current.connected && talk.trim() !== '') {
+    if (stompClient.current && stompClient.current.connected && talk.trim() !== "") {
       stompClient.current.send(
-        '/pub/chat/message',
+        "/pub/chat/message",
         {},
         JSON.stringify({
           chatId: chatId,
-          userId: 1, // 여기서 userId는 현재 로그인한 사용자의 ID로 변경해야 합니다.
+          userId: myId, // 여기서 userId는 현재 로그인한 사용자의 ID로 변경해야 합니다.
           content: talk,
         })
       );
-      setTalk(''); // 메시지 전송 후 입력 필드 초기화
+      setTalk(""); // 메시지 전송 후 입력 필드 초기화
+    }
+  };
+
+  const [partnerInfo, setPartnerInfo] = useState([]);
+  const [chatData, setChatData] = useState([]);
+  const [msgId, setMsgId] = useState(0);
+  const obsRef = useRef(null)
+  const preventRef = useRef(true);
+  const [haveMore, setHaveMore] = useState(true)
+  const size = 30
+  const [flag,setFlag] = useState(0)
+  const obsHandler = ((entries) => { //옵저버 콜백함수
+    const target = entries[0]
+    if(haveMore && target.isIntersecting && chatData && preventRef.current) {//옵저버 중복 실행 방지
+      preventRef.current=false
+      setFlag(prev => prev+1) //페이지 값 증가
+    }
+  })
+
+  useEffect(() => {//옵저버 생성
+    const observer = new IntersectionObserver(obsHandler, {threshold : 0.5})
+    if(obsRef.current) observer.observe(obsRef.current)
+    if(!haveMore) {
+      observer.disconnect()
+    }
+    return () => {observer.disconnect()}
+  }, [])
+
+
+
+
+  const getMessage = async () => {
+    try {
+      
+      const res = await api.get(`chats/message/${chatId}?page=0&size=${size}&msgId=${msgId}`);
+      console.log("채팅 데이터 받아오기");
+      setPartnerInfo(res.data.dataBody.chatDetailDto);
+      setChatData([...res.data.dataBody.messageDetailDtoList, ...chatData]);
+      console.log("확인",res.data.dataBody.messageDetailDtoList)
+      console.log(haveMore)
+      if(res.data.dataBody.messageDetailDtoList.length<size) {
+        preventRef.current=false
+        setHaveMore(false)
+        console.log("끝")
+      } else {
+        preventRef.current =true
+      }
+    } catch (err) {
+      console.log("채팅 데이터 받아오기 실패", err);
     }
   };
 
 
+  useEffect(() => {
+    if(chatData.length>0 && haveMore && preventRef.current){
+      console.log(chatData)
+      setMsgId(chatData[0].messageId)
+    }
+  },[chatData])
 
 
+  useEffect(() => {
+    if(preventRef){
 
-  const openForm = () =>{
-    setShowForm(true)
-    setButtonText('거래하기')
-    setButtonBgcolor('#1B5E20')
-  }
+      getMessage();
+    }
+  }, [flag]);
+
+  // const cachMessage = useMemo(() => getMessage(), [chatData])
+  // const debouncedGetMessage = useMemo(() => debounce(getMessage, 500), []);
+  // useEffect(() => {
+  //   if (cachMessage) {
+  //     setChatData(cachMessage.dataBody.messageDetailDtoList);
+  //     setPartnerInfo(cachMessage.dataBody.chatDetailDto);
+  //   } else {
+  //     debouncedGetMessage();
+  //   }
+  // }, [cachMessage, chatData]);
+
+  const [bubbleWidth, setBubbleWidth] = useState(null);
+  useEffect(() => {
+    if (textRef.current) {
+      const contentWidth = textRef.current.offsetWidth + 20;
+      setBubbleWidth(contentWidth);
+    }
+  }, []);
+
+  const openForm = () => {
+    setShowForm(true);
+    setButtonText("거래하기");
+    setButtonBgcolor("#1B5E20");
+  };
 
   const goBack = () => {
-    navigate('/chat');
-  }
+    navigate("/chat");
+  };
 
   const handleFormSubmit = () => {
-    setShowForm(false)
-    setButtonText('전송완료')
-    setButtonBgcolor('#8FBC8F')
-  }
+    setShowForm(false);
+    setButtonText("전송완료");
+    setButtonBgcolor("#8FBC8F");
+  };
 
-  const closeForm = () =>{
-    setShowForm(false)
-  }
+  const closeForm = () => {
+    setShowForm(false);
+  };
 
-  return(
+  useEffect(() => {
+    messageEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  return (
     <div>
-      <div style={{height:50,backgroundColor:'#1B5E20'}} className="p-2 flex items-center">
-        <h1 className="text-xl font-bold" style={{color:"white"}}>채팅</h1>
+      <div style={{ height: 50, backgroundColor: "#1B5E20" }} className="p-2 flex items-center">
+        <h1 className="text-xl font-bold" style={{ color: "white" }}>
+          채팅
+        </h1>
       </div>
-      <div style={{height:80}} className="p-2 border-b-2 border-gray-100 flex justify-between">
-        <div className='flex'>
-          <div className='flex items-center' onClick={goBack}><img src={Back} alt="" style={{ width:25,height:25 }}/></div>
-          <div className='text-lg flex items-center font-bold ml-5'>차은우보다현준</div>
+      <div style={{ height: 80 }} className="p-2 border-b-2 border-gray-100 flex justify-between">
+        <div className="flex">
+          <div className="flex items-center" onClick={goBack}>
+            <img src={Back} alt="" style={{ width: 25, height: 25 }} />
+          </div>
+          <div className="text-lg flex items-center font-bold ml-5">{partnerInfo.userNickname}</div>
         </div>
         {/* 아래거래하기버튼은 판매자만보이게 */}
-        <div className='flex items-center'>
-          <button className="btn" style={{ backgroundColor: buttonBgcolor}}> 
-            <div className="font-bold text-md" style={{ color:'white' }}
-            onClick={buttonText === '전송완료' ? null : openForm}
-          >{buttonText}</div>
+        <div className="flex items-center">
+          <button className="btn" style={{ backgroundColor: buttonBgcolor }}>
+            <div
+              className="font-bold text-md"
+              style={{ color: "white" }}
+              onClick={buttonText === "전송완료" ? null : openForm}
+            >
+              {buttonText}
+            </div>
           </button>
         </div>
       </div>
       {/* 거래하기눌렀을때 입력폼- 판매게시판에서 만든 채팅은 작물명X,구매게시판에서 만든채팅은 작물명O*/}
       {showForm && <Form onFormSubmit={handleFormSubmit} onCloseForm={closeForm} />}
-      {/* 대화말풍선 - 상대방 */}
-      <div className='flex p-3'>
-        <img src={Photo} alt="" style={{ width:40,height:40 }}/>
-        <div style={{width:`${width2}px`,backgroundColor:'#D3D3D3'}} className='rounded-3xl ml-3 flex justify-center items-center'>
-          <div ref={textRef2}>판매자님</div>
-        </div>
-      </div>
+
       {/* 대화말풍선 - 나 */}
-      <div className='flex p-3 justify-end'>
-        <div style={{width:`${width}px`,height:40,backgroundColor:'#8FBC8F'}} className='rounded-3xl ml-3 flex justify-center items-center'>
-          <div ref={textRef}>안녕하세요</div>
+      {/* 대화말풍선 - 상대방 */}
+      <div className="chat-container mb-20">
+      <div ref={obsRef}><br/></div>
+
+        {chatData?.map((chat, index) => (
+          <div key={index}>
+            {Number(chat?.userId) === Number(myId) ? (
+              <div className="flex p-3 justify-end">
+                <div
+                  style={{ width: `${bubbleWidth}px`, height: 40, backgroundColor: "#8FBC8F" }}
+                  className="rounded-3xl ml-3 flex justify-center items-center"
+                >
+                  <div ref={textRef}>{chat.content}</div>
+                </div>
+              </div>
+            ) : (
+              <div key={index} className="flex p-3">
+                <img src={partnerInfo.userProfile} alt="" style={{ width: 40, height: 40 }} />
+                <div
+                  style={{ width: `${bubbleWidth}px`, backgroundColor: "#D3D3D3" }}
+                  className="rounded-3xl ml-3 flex justify-center items-center"
+                >
+                  <div ref={textRef}>{chat.content}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {messages.map((message, index) => (
+          <div key={index}>
+            {message.userId === myId ? (
+              <div className="flex p-3 justify-end">
+                <div style={{ width: `${bubbleWidth}px`, height: 40, backgroundColor: "#8FBC8F" }}>
+                  {" "}
+                  {/* Adjust width for padding */}
+                  <div className="rounded-3xl ml-3 flex justify-center items-center">
+                    <div ref={textRef}>{message.content}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div key={index} className="flex p-3">
+                <img src={partnerInfo.userProfile} alt="" style={{ width: 40, height: 40 }} />
+                <div style={{ width: `${bubbleWidth}px`, backgroundColor: "#D3D3D3" }}>
+                  {" "}
+                  {/* Adjust width for padding */}
+                  <div className="rounded-3xl ml-3 flex justify-center items-center">
+                    <div ref={textRef}>{message.content}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        <div ref={messageEndRef}></div>
+      </div>
+
+      {/* 채팅입력창 */}
+      <div
+        className="p-3 flex"
+        style={{
+          position: "fixed",
+          bottom: keyboardVisible ? "0vh" : 10,
+          left: "0",
+          width: "100%",
+          padding: "10px",
+          boxSizing: "border-box,",
+          backgroundColor: "#FFFFFF",
+        }}
+      >
+        <input
+          value={talk}
+          onChange={(event) => setTalk(event.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              sendMessage(talk);
+            }
+          }}
+          id=""
+          name=""
+          type="text"
+          placeholder=""
+          autoComplete="text"
+          className="block h-10 pl-5 w-full rounded-3xl border-0 py-1 text-gray-800 ring-2 ring-inset ring-gray-300 placeholder:text-gray-400  focus:ring-inset  sm:text-sm sm:leading-6"
+        />
+        <div
+          style={{ backgroundColor: "#D3D3D3" }}
+          className="rounded-3xl w-12 flex justify-center items-center ml-1"
+        >
+          <div>
+            <img
+              onClick={() => sendMessage(talk)}
+              src={Vector}
+              alt=""
+              style={{ width: 20, height: 20 }}
+            />
+          </div>
         </div>
       </div>
-      {/* 채팅입력창 */}
-      <div className='p-3 flex'  style={{ position: 'fixed', bottom: keyboardVisible ? '0vh' : 10, left: '0', width: '100%', padding: '10px', boxSizing: 'border-box' }}>
-        <input value={talk} onChange={(event) => setTalk(event.target.value)} id="" name="" type="text" placeholder="" autoComplete="text" 
-        className="block h-10 pl-5 w-full rounded-3xl border-0 py-1 text-gray-800 ring-2 ring-inset ring-gray-300 placeholder:text-gray-400  focus:ring-inset  sm:text-sm sm:leading-6"
-        />
-        <div style={{backgroundColor:'#D3D3D3'}} className='rounded-3xl w-12 flex justify-center items-center ml-1'>
-          <div><img onClick={() => sendMessage(talk)} src={Vector} alt="" style={{ width:20,height:20}}/></div>
-        </div>
-      </div> 
     </div>
-  )
+  );
 }

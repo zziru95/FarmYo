@@ -23,6 +23,7 @@ public enum ExceptionType {
     PASSWORD_NOT_MATCH(HttpStatus.BAD_REQUEST, "U-011", "현재 비밀번호가 일치하지 않습니다."),
     FARMER_NOT_EXIST(HttpStatus.BAD_REQUEST, "U-012", "존재하지 않는 농부입니다."),
     DUPLICATE_LOGIN_ID(HttpStatus.BAD_REQUEST, "U-013", "아이디가 중복되었습니다."),
+    FAILED_TO_CREATE_WALLET(HttpStatus.INTERNAL_SERVER_ERROR, "U-014", "지갑 생성에 실패했습니다."),
 
     // 작물
     CROP_NOT_EXIST(HttpStatus.BAD_REQUEST, "C-001", "존재하지 않는 작물입니다."),
@@ -35,13 +36,20 @@ public enum ExceptionType {
     AWARDDETAILS_INVALID(HttpStatus.BAD_REQUEST, "C-008", "수상내역이 입력되지 않았습니다."),
     EVENTDATE_INVALID(HttpStatus.BAD_REQUEST, "C-009", "발생일이 입력되지 않았습니다."),
     TYPE_INVALID(HttpStatus.BAD_REQUEST, "C-010", "타입 값이 올바르지 않습니다."),
+    HARVEST_DATE_INVALID(HttpStatus.BAD_REQUEST, "C-011", "수확일이 심은 날보다 빠를 수 없습니다."),
+
+
+
+
+
+
 
 
 
     // 토큰
     TOKEN_NOT_EXIST(HttpStatus.UNAUTHORIZED, "O-001", "토큰이 존재하지 않습니다."),
-    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "O-002", "유효하지 않은 리프레시 토큰입니다."),
-    EXPIRED_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "O-003", "만료된 리프레시 토큰입니다."),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "O-002", "유효하지 않은 토큰입니다."),
+    EXPIRED_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "O-003", "만료된 토큰입니다."),
 
 
     // 거래
@@ -65,7 +73,7 @@ public enum ExceptionType {
     USER_NOT_AUTHOR(HttpStatus.FORBIDDEN, "B-011", "작성자만 수정 또는 삭제할 수 있습니다."),
     BOARD_ALREADY_EXISTS(HttpStatus.CONFLICT, "B-012", "이미 이 작물과 관련된 게시판이 있습니다."),
     BUYER_ONLY_ACCESS(HttpStatus.FORBIDDEN, "B-013", "구매자 게시판 목록은 오직 구매자만 볼 수 있습니다."),
-
+    FARMER_MISMATCH(HttpStatus.UNAUTHORIZED, "B-014", "접속한 회원과 해당 loginId를 가진 농부가 다릅니다."),
 
 
 

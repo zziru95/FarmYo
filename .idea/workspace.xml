@@ -27,7 +27,7 @@
   "keyToString": {
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "develop",
+    "git-widget-placeholder": "FE/kakao",
     "kotlin-language-version-configured": "true",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
@@ -45,10 +45,19 @@
       <updated>1710944242875</updated>
       <workItem from="1710944244653" duration="1000" />
       <workItem from="1711791435151" duration="107000" />
+      <workItem from="1711833406836" duration="22000" />
+      <workItem from="1712039165053" duration="26000" />
+      <workItem from="1712066124193" duration="11000" />
+      <workItem from="1712068082857" duration="12000" />
+      <workItem from="1712080522002" duration="171000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="################&#10;# &lt;타입&gt; : &lt;제목&gt; 의 형식으로 제목을 아래 공백줄에 작성&#10;# 제목은 50자 이내 / 변경사항이 &quot;무엇&quot;인지 명확히 작성 / 끝에 마침표 금지&#10;################&#10;# ✨ : 새로운 기능 추가&#10;#  : 코드 수정&#10;#  : 버그 수정&#10;#  : 문서 수정&#10;#  : UI, 스타일 파일 추가, 수정&#10;#  : 스타일 관련 기능(코드 포맷팅, 세미콜론 누락, 코드 자체의 변경이 없는 경우)&#10;# ♻️ : 코드 리팩토링&#10;#  : 코드나 파일 삭제&#10;# ✅ : 테스트 코드 추가&#10;#  : 작업 도중 저장&#10;################&#10;# 바로 아래 공백은 지우지 마세요 (제목과 본문의 분리를 위함)&#10;&#10;################&#10;# 본문(구체적인 내용)을 아랫줄에 작성&#10;# 여러 줄의 메시지를 작성할 땐 &quot;-&quot;로 구분 (한 줄은 72자 이내)&#10;# 하위 내용은 스페이스바 2번 눌러서 들여쓰기 후 작성&#10;# API 구현 시 성공 코드 및 예외 처리 사항 작성&#10;&#10;# 바로 아래 공백은 지우지 마세요 (본문과 꼬리말의 분리를 위함)&#10;&#10;################&#10;# 꼬리말(footer)을 아랫줄에 작성 (현재 커밋과 관련된 이슈 번호 추가 등)&#10;# Related to : S10P22D209-이슈코드 #done&#10;################" />
+    <option name="LAST_COMMIT_MESSAGE" value="################&#10;# &lt;타입&gt; : &lt;제목&gt; 의 형식으로 제목을 아래 공백줄에 작성&#10;# 제목은 50자 이내 / 변경사항이 &quot;무엇&quot;인지 명확히 작성 / 끝에 마침표 금지&#10;################&#10;# ✨ : 새로운 기능 추가&#10;#  : 코드 수정&#10;#  : 버그 수정&#10;#  : 문서 수정&#10;#  : UI, 스타일 파일 추가, 수정&#10;#  : 스타일 관련 기능(코드 포맷팅, 세미콜론 누락, 코드 자체의 변경이 없는 경우)&#10;# ♻️ : 코드 리팩토링&#10;#  : 코드나 파일 삭제&#10;# ✅ : 테스트 코드 추가&#10;#  : 작업 도중 저장&#10;################&#10;# 바로 아래 공백은 지우지 마세요 (제목과 본문의 분리를 위함)&#10;&#10;################&#10;# 본문(구체적인 내용)을 아랫줄에 작성&#10;# 여러 줄의 메시지를 작성할 땐 &quot;-&quot;로 구분 (한 줄은 72자 이내)&#10;# 하위 내용은 스페이스바 2번 눌러서 들여쓰기 후 작성&#10;# API 구현 시 성공 코드 및 예외 처리 사항 작성&#10;&#10;# 바로 아래 공백은 지우지 마세요 (본문과 꼬리말의 분리를 위함)&#10;&#10;################&#10;# 꼬리말(footer)을 아랫줄에 작성 (현재 커밋과 관련된 이슈 번호 추가 등)&#10;# Related to : S10P22D209-이슈코드 #done&#10;################" />
   </component>
 </project>

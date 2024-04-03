@@ -19,9 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigInteger;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -40,10 +37,9 @@ public class CropServiceImpl implements CropService {
 
     //작물 등록
     @Override
-    @Transactional
+    @Transactional(rollbackFor = CustomException.class)
     public int addCrop(AddCropReqDto addCropReqDto, int farmerId) {
 
-        String basicUrl = "https://yeopbucket.s3.ap-northeast-2.amazonaws.com/%EA%B8%B0%EB%B3%B8%20%EC%9D%B4%EB%AF%B8%EC%A7%80_1711798541181.png";
 
 
         //해당 id의 파머가 있는지 확인
@@ -58,6 +54,7 @@ public class CropServiceImpl implements CropService {
                 .orElseThrow(() -> new CustomException(ExceptionType.CATEGORY_NOT_EXIST));
 
 
+        String basicUrl = "https://yeopbucket.s3.ap-northeast-2.amazonaws.com/%EC%A0%9C%EB%AA%A9%EC%9D%84-%EC%9E%85%EB%A0%A5%ED%95%B4%EC%A3%BC%EC%84%B8%EC%9A%94_-002_1711958597385.png";
         Crop crop = Crop.builder()
                 .farmer(farmer)
                 .cropCategory(cropCategory)
@@ -110,6 +107,8 @@ public class CropServiceImpl implements CropService {
     public void updateCropImgUrl(int cropId, MultipartFile cropImg, int userId) {
 
         Crop crop = cropRepository.findById(cropId).orElseThrow(() -> new CustomException(ExceptionType.CROP_NOT_EXIST));
+        String basicUrl = "https://yeopbucket.s3.ap-northeast-2.amazonaws.com/%EC%A0%9C%EB%AA%A9%EC%9D%84-%EC%9E%85%EB%A0%A5%ED%95%B4%EC%A3%BC%EC%84%B8%EC%9A%94_-002_1711958597385.png";
+
 
         if (!crop.getFarmer().getId().equals(userId)) {
             throw new CustomException(ExceptionType.CROP_NOT_OWNED_BY_FARMER);
@@ -117,7 +116,7 @@ public class CropServiceImpl implements CropService {
 
 
         String oldCropImgUrl = null;
-        if (crop.getCropCategory() != null) {
+        if (crop.getCropImgUrl() != null) {
             oldCropImgUrl = crop.getCropImgUrl();
 
         }
@@ -126,7 +125,9 @@ public class CropServiceImpl implements CropService {
         String cropImgUrl = awsS3Service.uploadFile(cropImg);
         crop.updateCropImgUrl(cropImgUrl);
         if (oldCropImgUrl != null) {
-            awsS3Service.deleteFileByUrl(oldCropImgUrl);
+            if (!oldCropImgUrl.equals(basicUrl)) {
+                awsS3Service.deleteFileByUrl(oldCropImgUrl);
+            }
         }
         
     }
@@ -140,7 +141,7 @@ public class CropServiceImpl implements CropService {
             throw new CustomException(ExceptionType.USER_NOT_EXIST);
         } else {
             Farmer farmer = farmerOptional.get();
-            List<Crop> crops = cropRepository.findByFarmerId(farmer.getId());
+            List<Crop> crops = cropRepository.findByFarmerIdOrderByIdDesc(farmer.getId());
             return crops.stream()
                     .map(crop -> CropListResDto.builder()
                             .id(crop.getId())
@@ -203,11 +204,13 @@ public class CropServiceImpl implements CropService {
     //블록체인 기록 등록
 
     @Override
+    @Transactional(rollbackFor = CustomException.class)
     public void createBlockChain(int cropId, int userId, CropBlockchainResDto cropBlockchainResDto) {
 
 
         Crop crop = cropRepository.findById(cropId)
                 .orElseThrow(() -> new CustomException(ExceptionType.CROP_NOT_EXIST));
+
 
         //작물주인과 접속자가 다를 경우
         if (!crop.getFarmer().getId().equals(userId)) {
@@ -218,6 +221,11 @@ public class CropServiceImpl implements CropService {
         if (cropBlockchainResDto.getEventDate() == null) {
             throw new CustomException(ExceptionType.EVENTDATE_INVALID);
         }
+
+        if (cropBlockchainResDto.getEventDate().isBefore(crop.getCropPlantingDate())) {
+            throw new CustomException(ExceptionType.HARVEST_DATE_INVALID);
+
+        }
 //        블록체인기능 다듬어서 넣을곳
         // LocalDate 타입의 날짜를 yyyyMMdd 형식의 String으로 변환
         String formattedDate = cropBlockchainResDto.getEventDate().format(DateTimeFormatter.BASIC_ISO_DATE); // '20241031'
@@ -227,7 +235,7 @@ public class CropServiceImpl implements CropService {
 
         if (cropBlockchainResDto.getType() == 1) {
 
-            if (cropBlockchainResDto.getContestName() == null || cropBlockchainResDto.getPesticideName().isEmpty()) {
+            if (cropBlockchainResDto.getPesticideName() == null || cropBlockchainResDto.getPesticideName().isEmpty()) {
                 throw new CustomException(ExceptionType.PesticideName_INVALID);
             }
             if (cropBlockchainResDto.getPesticideType() == null || cropBlockchainResDto.getPesticideType().isEmpty()) {
@@ -251,6 +259,8 @@ public class CropServiceImpl implements CropService {
                 throw new CustomException(ExceptionType.BLOCKCHAIN_FAILED_TO_CREATE);
             }
         } else if (cropBlockchainResDto.getType() == 3) {
+
+            crop.updateCropHarvestDate(cropBlockchainResDto.getEventDate());
             try {
                 cropContractService.addHarvestInfo(BigInteger.valueOf(crop.getId()), eventDate);
             } catch (Exception e) {
@@ -261,4 +271,25 @@ public class CropServiceImpl implements CropService {
         }
 
     }
+
+
+    //수확한 농부의 작물만 조회
+    @Override
+    public  List<HarvestCropListResDto> getHarvestCropList(String farmerLoginId, int userId) {
+        Farmer farmer = farmerRepository.findByLoginId(farmerLoginId)
+                .orElseThrow(() -> new CustomException(ExceptionType.FARMER_NOT_EXIST));
+        if (!farmer.getId().equals(userId)) {
+            throw new CustomException(ExceptionType.FARMER_MISMATCH);
+        }
+
+        List<Crop> crops = cropRepository.findHarvestByFarmerIdOrderByCropHarvestDate(farmer.getId());
+        return crops.stream()
+                .map(crop -> HarvestCropListResDto.builder()
+                        .id(crop.getId())
+                        .harvestDate(crop.getCropHarvestDate())
+                        .name(crop.getCropName())
+                        .build())
+                .collect(Collectors.toList());
+        }
+
 }

@@ -5,7 +5,7 @@ import Gumsa from "../../../image/component/gumsa.png"
 import Inz from "../../../image/component/inz.png"
 import "react-responsive-modal/styles.css"
 import { Modal } from "react-responsive-modal"
-import React,{ useState,useEffect } from "react"
+import React,{ useState,useEffect,useRef} from "react"
 import { Fragment } from 'react'
 import { Menu, Transition } from '@headlessui/react'
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
@@ -19,7 +19,12 @@ import api from "../../../api/api"
 import '../../../css/pagenation.css'
 import Web3 from "web3"
 import { jwtDecode } from 'jwt-decode';
-
+import { useNavigate } from "react-router-dom"
+import CropStanby from "../../../image/component/cropstanby.gif"
+import Gallery from "../../../image/component/gallery.png"
+import Swal from "sweetalert2"
+import BeforeHarvest from '../../../image/component/beforeharvest.png'
+import Daegi from '../../../image/component/daegi.gif'
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
@@ -27,7 +32,7 @@ function classNames(...classes) {
 
 
 export default function MyCrops(props) {
-  const loginNickname = jwtDecode( localStorage.getItem("access") ).nickname
+  const navigate = useNavigate()
   const loginId = jwtDecode( localStorage.getItem("access") ).loginId
 
   const styles = {
@@ -41,20 +46,13 @@ export default function MyCrops(props) {
     },
   };
   
-
-  const [startDate,setStartDate] = useState(null)
-  const [endDate, setEndDate] = useState(null)
   const [selected,setSelected] = useState('')
   const [cropList,setCropList] = useState([]) // 작물등록시 작물 리스트
   const [cropsList,setCropsList] = useState([]) // 농부가 등록한 작물조회시 담길 리스트
   const [cropId,setCropId] = useState(null)
-  //작물 리스트 5개단위로 페이지네이션
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 5
-  //전체 페이지수 계산
-  const totalItems = cropsList.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
+ 
   
+  const [lifeCycleList,setLifeCycleList] = useState([])
 
   //작물 블록체인 기록 조회
   //새로운 web3객체생성
@@ -477,6 +475,7 @@ export default function MyCrops(props) {
       "type": "function"
     }
   ]
+  const [isLoading, setIsLoading] = useState(false); // 로딩 상태 추가
   //접근할 계약 주소
   const contractAddress = '0xE8448EEB2629E3e96f96f8EBedc9Fd2faa6fe20c';
   //계약 객체 생성
@@ -484,11 +483,12 @@ export default function MyCrops(props) {
 
   //모든 정보 호출하여 데이터 가져와서 시간 순으로 정렬
   async function fetchData(cropPK) {
+    setIsLoading(true);
     try {
-      const contestInfos = await contract.methods.getContestInfos(cropPK).call();
-      const harvestInfos = await contract.methods.getHarvestInfos(cropPK).call();
       const plantingInfo = await contract.methods.getPlantingInfos(cropPK).call();
       const usageInfos = await contract.methods.getUsageInfos(cropPK).call();
+      const contestInfos = await contract.methods.getContestInfos(cropPK).call();
+      const harvestInfos = await contract.methods.getHarvestInfos(cropPK).call();
 
       let allInfos = [];
 
@@ -536,11 +536,15 @@ export default function MyCrops(props) {
 
       // eventDate를 기준으로 정렬
       const sortedInfos = allInfos.sort((a, b) => a.eventDate - b.eventDate);
+      setLifeCycleList(sortedInfos)
+      console.log(lifeCycleList)
 
       return sortedInfos;
     } catch (error) {
       console.error('Error fetching data:', error);
       throw error;
+    }finally {
+      setIsLoading(false); // 로딩 완료
     }
   }
 
@@ -551,41 +555,69 @@ export default function MyCrops(props) {
   //   console.error('Error fetching data:', error);
   // });
 
+   //작물 리스트 5개단위로 페이지네이션
+   const [currentPage, setCurrentPage] = useState(1)
+   const itemsPerPage = 3
+   //전체 페이지수 계산
+   const totalItems = cropsList.length;
+   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-
-
-
+   const groupSize = 3; // 페이지 그룹당 최대 페이지 수
+   const [currentGroup, setCurrentGroup] = useState(1); // 현재 페이지 그룹
   // currentPage에 따라 보여줄 항목 계산
   const indexOfLastItem = currentPage * itemsPerPage
   const indexOfFirstItem = indexOfLastItem - itemsPerPage
   const currentItems = cropsList.slice(indexOfFirstItem, indexOfLastItem)
 
+
+  // 현재 페이지 그룹에 따라 보여줄 페이지 번호 계산
+  const firstPageInGroup = (currentGroup - 1) * groupSize + 1;
+  const lastPageInGroup = Math.min(firstPageInGroup + groupSize - 1, totalPages);
+
+
    // 페이지 변경 함수
-   const goToNextPage = () => {
-    setCurrentPage(currentPage => {
-      if (currentPage < totalPages) return currentPage + 1;
-      return currentPage;
-    });
-  };
-   const goToPrevPage = () => setCurrentPage(page => page > 1 ? page - 1 : page);
+  //  const goToNextPage = () => {
+  //   setCurrentPage(currentPage => {
+  //     if (currentPage < totalPages) return currentPage + 1;
+  //     return currentPage;
+  //   });
+  // };
+  //  const goToPrevPage = () => setCurrentPage(page => page > 1 ? page - 1 : page);
 
    const pageNumbers = [];
-    for (let i = 1; i <= totalPages; i++) {
-      pageNumbers.push(i);
-    }
+  for (let i = firstPageInGroup; i <= lastPageInGroup; i++) {
+    pageNumbers.push(i);
+  }
 
+  const paginate = pageNumber => setCurrentPage(pageNumber);
+  const goToNextGroup = () => setCurrentGroup(group => Math.min(group + 1, Math.ceil(totalPages / groupSize)));
+  const goToPrevGroup = () => setCurrentGroup(group => Math.max(group - 1, 1));
+
+  const [flag,setFlag] = useState(false)
 
   useEffect(()=>{
     setSelected('구분')
     // 작물 리스트 조회
-    api.get(`crops/list/${loginId}`)
-    .then((res)=>{
-      console.log(res)
-      setCropsList(res.data.dataBody)
-    })
-    .catch((err)=>{
-      console.log(err)
-    })
+    if (!props.profileId) {
+      api.get(`crops/list/${loginId}`)
+      .then((res)=>{
+        console.log(res)
+        setCropsList(res.data.dataBody)
+      })
+      .catch((err)=>{
+        console.log(err)
+      })
+    }else{
+      api.get(`crops/list/${props.profileId}`)
+      .then((res)=>{
+        console.log(res)
+        setCropsList(res.data.dataBody)
+      })
+      .catch((err)=>{
+        console.log(err)
+      })
+    }
+
     // 작물 카테고리 조회
     api.get('crops/category')
     .then((res)=>{
@@ -595,7 +627,7 @@ export default function MyCrops(props) {
     .catch((err)=>{
       console.log(err)
     })
-  },[])
+  },[flag])
   
 
   const [open,setOpen] = useState(false)
@@ -614,7 +646,8 @@ export default function MyCrops(props) {
   const [cropHarvestDate,setCropHarvestDate] = useState('')
   const [cropImgUrl,setCropImgUrl] = useState('')
 
-  //농산물등록모달
+
+  //작물등록모달 오픈
   const onOpenModal = () => {
     setOpen(true);
   };
@@ -623,41 +656,27 @@ export default function MyCrops(props) {
   const [selectedCrop, setSelectedCrop] = useState({ id: null, categoryName: '작물을 선택하세요' })
   const [cultivation,setCultivation] = useState('') // 재배지
   const [plantingDate,setPlantingDate] = useState('') // 심은날짜
+  const [cropStatus,setCropStatus] = useState('')
 
   const onCloseModal = () => {
     setOpen(false)
-    // 작물등록axios
-    api.post('crops',{
-        cropCategoryId:selectedCrop.id,
-        cultivation:cultivation,
-        plantingDate:plantingDate
-      }
-    )
-    .then((res)=>{
-      console.log('작물등록성공')
-      console.log(res)
-      // 상태 초기화
-      setSelectedCrop({ id: null, categoryName: '작물을 선택하세요' });
-      setCultivation('');
-      setPlantingDate('');
-
-    })
-    .catch((err)=>{
-      console.log(err)
-    })
   };
 
 
   // 농산물정보보기모달(수확전)
   const infoOpenModal = (crop_id) => {
+    console.log(loginId)
+    console.log(props.profileId)
     console.log(crop_id)
     setInfoOpen(true);
     api.get(`crops/${crop_id}`) // crop_id 변수를 URL에 삽입
     .then((res)=>{
       console.log(res)
+      console.log('농산물 상세정보(수확전)조회성공')
       setCropName(res.data.dataBody.cropName)
       setCropPlantingDate(res.data.dataBody.cropPlantingDate)
       setCropCultivationSite(res.data.dataBody.cropCultivationSite)
+      setCropId(res.data.dataBody.id)
 
     })
     .catch((err)=>{
@@ -665,14 +684,44 @@ export default function MyCrops(props) {
     })
   };
   
+ 
+ // 작물등록하기
+  const handelRegisterCrop = async () => {
+    try {
+      // 대기 화면으로 이동
+      navigate('/stanby/crop');
+      const res = await api.post('crops', {
+        cropCategoryId: selectedCrop.id,
+        cultivation: cultivation,
+        plantingDate: plantingDate,
+      });
+  
+      console.log('작물등록성공');
+      console.log(res);
+      Swal.fire({
+        html: '<h1 style="font-weight: bold;">작물이 등록되었습니다</h1>',
+        icon: 'success',
+        showConfirmButton: false,
+      });
+      setSelectedCrop({ id: null, categoryName: '작물을 선택하세요' });
+      setCultivation('');
+      setPlantingDate('');
+      navigate('/mypage/seller',{ state: { selectedTabIndex: 1 } })
 
+
+    } catch (err) {
+      console.log(err);
+    }
+  };
+  
   const infoCloseModal = () => {
     setInfoOpen(false);
   };
+
   // 농산물정보보기모달(수확후)
-  const info2OpenModal = (crop_id) => {
+  const info2OpenModal = (crop_Id) => {
     setInfo2Open(true);
-    api.get(`crops/${crop_id}`)// crop_id 변수를 URL에 삽입
+    api.get(`crops/${crop_Id}`)// crop_id 변수를 URL에 삽입
     .then((res)=>{
       console.log(res)
       setCropName(res.data.dataBody.cropName)
@@ -680,6 +729,9 @@ export default function MyCrops(props) {
       setCropCultivationSite(res.data.dataBody.cropCultivationSite)
       setCropHarvestDate(res.data.dataBody.cropHarvestDate)
       setCropImgUrl(res.data.dataBody.cropImgUrl)
+      setCropStatus(res.data.dataBody.cropStatus) // 0이면 수확전 1이면 수확후
+      setCropId(crop_Id)
+      
     })
     .catch((err)=>{
       console.log(err)
@@ -734,15 +786,105 @@ export default function MyCrops(props) {
     setCertificationOpen(false);
   };
 
-  // 생애기록 모달
+  // 생애기록 모달(블록체인)
   const LifeRecordOpenModal = () => {
-    setLifeRecordOpen(true);
+    fetchData(cropId)
+    if (!isLoading) {
+    setLifeRecordOpen(true)
+    }
   };
 
   const LifeRecordCloseModal = () => {
+    setLifeCycleList([])
     setLifeRecordOpen(false);
   };
+
+  const [stanbyModal,setStanbyModal] = useState(false)
+
+  const stanbyOpenModal = () => {
+    setStanbyModal(true);
+  };
+
+  const stanbyCloseModal = () => {
+    setStanbyModal(false);
+  };
+
   
+  // 수확하기 블록체인저장
+  const handleRegister = () => {
+    // 대기 모달오픈
+    stanbyOpenModal()
+    api.post(`crops/${cropId}`,{
+      type:3,
+      eventDate:cropHarvestDate
+    })
+    .then((res)=>{
+      console.log(res)
+      console.log('수확정보 블록체인저장 성공')
+      stanbyCloseModal()
+      harvestCloseModal() // 수확모달닫기
+      Swal.fire({
+        html: '<h1 style="font-weight: bold;">수확성공!<br/>사진을 등록해주세요</h1>',
+        icon: 'success',
+        showConfirmButton: false,
+      });
+      infoCloseModal()
+      info2OpenModal()
+
+    })
+    .catch((err)=>{
+      console.log(err)
+    })
+  }
+
+  const [harvestImage,setHarvestImage] = useState(null)
+  const [selectImage,setSelectImage] = useState('')
+
+  const handleFileInputClick = () => {
+    // 숨겨진 file input을 클릭
+    document.getElementById('hiddenFileInput').click();
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files[0]; // 단일 파일만 선택
+    if (file) {
+      setHarvestImage(file)
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            // 파일 읽기가 완료되면 미리보기 URL을 상태에 설정
+            setSelectImage(e.target.result);
+        };
+        
+        reader.readAsDataURL(file);
+    }
+
+  }
+
+  // 수확후 단일사진저장하기
+  const handleUpload = () =>{
+    console.log(cropId)
+    const formData = new FormData()
+    if (harvestImage) {
+      formData.append('cropImg',harvestImage)
+    }
+    api.patch(`crops/${cropId}`,formData)
+    .then((res)=>{
+      console.log(res)
+      console.log('수확사진저장성공')
+      Swal.fire({
+        html: '<h1 style="font-weight: bold;">사진저장성공!</h1>',
+        icon: 'success',
+        showConfirmButton: false,
+      });
+      setFlag(!flag)
+    })
+    .catch((err)=>{
+      console.log(err)
+    })
+  }  
+
+
+
 
   return(
     // "작물없으면 등록한 작물이 없습니다"노출
@@ -757,12 +899,12 @@ export default function MyCrops(props) {
         {crop.cropHarvestDate ? (
       <img src={crop.cropImgUrl} alt="Crop Image" style={{width:80, height: 70, objectFit: 'cover'}} />
     ) : (
-      <div style={{backgroundColor:'#bbbbbb',width:80}}></div>
+      <img src={BeforeHarvest} alt="" style={{width:80,height:70,border: '1px solid gray'}}/> // 수확전사진 넣기
     )}
-        <div className="p-5">
-          <h1 className="font-bold">{crop.cropName}</h1>
-          {crop.cropHarvestDate && <h1 className="text-sm">수확날짜 : {crop.cropHarvestDate}</h1>}
-        </div>
+      <div className="p-2">
+        <h1 className="font-bold">{crop.cropName}</h1>
+        {crop.cropHarvestDate && <h1 className="text-sm">수확날짜 : {crop.cropHarvestDate}</h1>}
+      </div>
         <div className="ml-auto flex items-center p-5"
         >
           <img src={Next} alt="" style={{width:30,height:30}}/>
@@ -770,28 +912,36 @@ export default function MyCrops(props) {
       </div>
       ))}
       
-      <div style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)' }}>
+      <div style={{ position: 'fixed', bottom: '130px', left: '50%', transform: 'translateX(-50%)' }}>
         <div className="join flex justify-center">
-          <button className="join-item btn"  onClick={goToPrevPage}>«</button>
+          {/* 이전 페이지 그룹으로 이동: 현재 페이지 그룹이 첫 번째 그룹보다 큰 경우에만 버튼 표시 */}
+          {currentGroup > 1 && (
+            <button className="join-item btn" onClick={goToPrevGroup}>«</button>
+          )}
           {pageNumbers.map(number => (
-          <button key={number}
-          className={`join-item btn ${currentPage === number ? 'active' : ''}`}
-          onClick={() => setCurrentPage(number)}>
-            {number}
-          </button>
+            <button key={number}
+              className={`join-item btn ${currentPage === number ? 'active' : ''}`}
+              onClick={() => paginate(number)}>
+              {number}
+            </button>
           ))}
-          <button className="join-item btn"  onClick={goToNextPage}>»</button>
+          {/* 다음 페이지 그룹으로 이동: 현재 페이지 그룹이 마지막 그룹보다 작은 경우에만 버튼 표시 */}
+          {currentGroup < Math.ceil(totalPages / groupSize) && (
+            <button className="join-item btn" onClick={goToNextGroup}>»</button>
+          )}
         </div>
       </div>
+
       </>
-      ) : (
-        <div style={{ textAlign: 'center', paddingTop: '20%' }}>
+      ) :
+      (
+       <div style={{ textAlign: 'center', paddingTop: '20%' }}>
         등록한 작물이 없습니다.
       </div>  
       )}
   
       { !props.profileId && (
-      <div style={{ position: 'absolute', bottom: 0, right: 10}}>
+      <div style={{ position: 'fixed', bottom: '130px', right: '15px'}}>
         <div style={{backgroundColor:'#1B5E20',borderRadius: '50%', width: '50px', height: '50px', position: 'relative' }}>
           <div style={{ position: 'absolute', top: '44%', left: '50%', transform: 'translate(-50%, -50%)', color: 'white', fontSize: '40px' }}
           onClick={onOpenModal}>
@@ -804,13 +954,13 @@ export default function MyCrops(props) {
       {/* ********모달모음************ */}
       {/* ******농산물 등록모달창***** */}
       <Modal open={open} onClose={onCloseModal} styles={styles}>
-        <div className="flex justify-center items-center pt-32">
+        <div className="flex justify-center items-center pt-12">
         <Menu as="div" className="relative inline-block text-left">
           <Menu.Button className="inline-flex w-full justify-center items-center gap-x-1.5 rounded-md
-          bg-white px-12 py-3 text-xl text-gray-900 font-semibold
+          bg-white px-12 py-2 text-xl text-gray-900 font-semibold
             ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
             {selectedCrop.categoryName}
-            <ChevronDownIcon className="-mr-1 h-5 w-5 text-gray-400" aria-hidden="true" />
+            <ChevronDownIcon className="mr-1 h-2 w-5 text-gray-400" aria-hidden="true" />
           </Menu.Button>
   
           <Transition
@@ -823,8 +973,8 @@ export default function MyCrops(props) {
             leaveTo="transform opacity-0 scale-95"
           >
           <Menu.Items className="absolute right-0 z-10 w-full px-4 mt-2 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
-          style={{width:'16rem'}}>
-            <div className="py-1">
+          >
+            <div className="py-1 grid grid-cols-3 gap-4">
               {cropList.map((crop,index)=>(
               <Menu.Item key={crop.id} onClick={() => setSelectedCrop({ id: crop.id, categoryName: crop.categoryName })}> 
                 {({ active }) => (
@@ -832,7 +982,7 @@ export default function MyCrops(props) {
                     href="#"
                     className={classNames(
                       active ? 'bg-gray-100 text-gray-900' : 'text-gray-700',
-                      'block px-12 py-2 text-xl'
+                      'block w-full px-1  text-left text-xl'
                       
                     )}
                   >
@@ -862,7 +1012,7 @@ export default function MyCrops(props) {
             <DatePicker
               locale={ko}
               selected={plantingDate ? new Date(plantingDate) : null}
-              dateFormat="yyyy년 MM월 dd일"
+              dateFormat="yyyy-MM-dd"
               onChange={date => setPlantingDate(date.toISOString().slice(0, 10))}
               className="block h-12 w-full rounded-md border-0 py-1.5 pl-7 pr-20 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
               placeholderText="날짜를 선택하세요"
@@ -870,7 +1020,7 @@ export default function MyCrops(props) {
             </div>
             <div style={{width: '100%', height: '50px', backgroundColor: '#1B5E20' }}
               className="flex justify-center items-center rounded-md mt-16"
-              onClick={onCloseModal}>
+              onClick={handelRegisterCrop}>
               <h1 style={{color:'white'}} className="text-2xl">등록</h1>
             </div>
           </div>
@@ -878,7 +1028,7 @@ export default function MyCrops(props) {
       </Modal>
       {/* *******농산물정보보기모달(수확전)****** */}
       <Modal open={infoOpen} onClose={infoCloseModal} styles={styles}>
-        <div className="mt-28">
+        <div className="mt-16">
         <div className="px-8">
           <label for="price" class="block text-xl font-medium leading-6 text-gray-900">작물명</label>
           <div class="relative mt-2 rounded-md">
@@ -898,44 +1048,148 @@ export default function MyCrops(props) {
           </div>
         </div>
         <div className="px-8 mt-10">
-          <button className="btn w-full flex justify-around" style={{ border:'3px solid #81C784',backgroundColor: 'transparent'}}>
+          <button className="btn w-full flex justify-around" 
+          style={{ border:'3px solid #81C784',backgroundColor: 'transparent'}}
+          onClick={LifeRecordOpenModal}>
             <img src={Vet} alt="" style={{width:40,height:30}}/>
-            <div className="font-bold" onClick={LifeRecordOpenModal}>농산물 생애기록 보기</div>
+            <div className="font-bold">농산물 생애기록 보기</div>
           </button>
         </div>
         {/* 아래부분은 판매자만보이게 */}
-        <div className="px-8 flex justify-end mt-3">
-          <p className="text-md font-bold" onClick={addRecordModal}>+생애기록 추가하기</p>
-        </div>
-        <div className="px-8 mt-10" onClick={harvestOpenModal}>
-          <button className="btn w-full flex justify-around" style={{ border:'3px solid #81C784',backgroundColor: 'transparent'}}>
-            <img src={Harvest} alt="" style={{width:30,height:30}}/>
-            <div className="mr-5 font-bold">수확하기</div>
-          </button>
-        </div>
+        { (!props.profileId || props.profileId === loginId)  && (
+        <div>
+          <div className="px-8 flex justify-end mt-3 mr-3">
+            <p className="text-md font-bold" onClick={addRecordModal}>+생애기록 추가하기</p>
+          </div>
+          <div className="px-8 mt-10" onClick={harvestOpenModal}>
+            <button className="btn w-full flex justify-around" style={{ border:'3px solid #81C784',backgroundColor: 'transparent'}}>
+              <img src={Harvest} alt="" style={{width:30,height:30}}/>
+              <div className="mr-5 font-bold">수확하기</div>
+            </button>
+          </div>
+        </div>)}
         </div>
       </Modal>
-      {/* 농산물 생애기록보기 모달 */}
+      {/* 농산물 생애기록보기(블록체인) 모달 */}
       <Modal open={lifeRecordOpen} onClose={LifeRecordCloseModal} styles={styles}>
-        <div class="timeline">
-          <div class="event">
-            <div class="text-xl font-bold">2023-05-10</div>
-            <div class="event-circle"></div>
-            <div className="font-bold mt-5">심은날짜</div>    
-            <div>2022-10-2</div>
-            <div className="font-bold mt-5">재배지</div>    
-            <div>경상북도 고령군 대가야읍</div>
+       { isLoading ? (
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <div><img src={Daegi} alt="대기 이미지" style={{width:200}}/></div>
+          <div className="font-bold text-lg">
+            <h1>생애기록 불러오는중 ...</h1>
           </div>
-        </div>               
+        </div>
+    
+       ) : (
+        <ul class="timeline-vertical">
+        {lifeCycleList.map((item, index) => {
+          switch (item.infoType) {
+            //심은날 정보일 때
+            case 0:
+              return (
+                <li>
+                  <div className="flex" style={{borderLeft: "2px solid #1B5E20"}} >
+                    <div class="timeline-middle">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>
+                    </div>
+                    <div className="timeline-end timeline-box space-y-2">
+                      <time className="font-mono italic font-bold">{item.eventDate}</time>
+                      <div className="text-lg font-black">재배</div>
+                      <div>작물이름 : {item.cropName}</div>
+                      <div>재배지 : {item.land}</div>
+                    </div>
+                  </div>
+                </li>
+              )
+
+            // 농약 기록일 때
+            case 1:
+              return (
+                <li>
+                  <div className="flex" style={{borderLeft: "2px solid #1B5E20"}} >
+                    <div class="timeline-middle">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>
+                    </div>
+                    <div className="timeline-end timeline-box space-y-2">
+                      <time className="font-mono italic font-bold">{item.eventDate}</time>
+                      <div className="text-lg font-black">농약사용</div>
+                      <div>농약 이름 : {item.pesticideName}</div>
+                      <div>농약 종류 : {item.pesticideType}</div>
+                    </div>
+                  </div>
+                </li>
+              )
+
+            // 대회 기록일 때
+            case 2:
+              return (
+                <li>
+                  <div className="flex" style={{borderLeft: "2px solid #1B5E20"}} >
+                    <div class="timeline-middle">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>
+                    </div>
+                    <div className="timeline-end timeline-box space-y-2">
+                      <time className="font-mono italic font-bold">{item.eventDate}</time>
+                      <div className="text-lg font-black">수상 정보</div>
+                      <div>대회 이름 : {item.pesticicontestNamedeName} </div>
+                      <div>수상내역 : {item.awardDetails}</div>
+                    </div>
+                  </div>
+                </li>
+
+              )
+
+              //수확날
+              case 3:
+                return (
+                  <li>
+                    <div className="flex" style={{borderLeft: "2px solid #1B5E20"}} >
+                      <div class="timeline-middle">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>
+                      </div>
+                      <div className="timeline-end timeline-box space-y-2">
+                        <time className="font-mono italic font-bold">{item.eventDate}</time>
+                        <div className="text-lg font-black">수확</div>
+                      </div>
+                    </div>
+                  </li>
+                )
+         
+            default:
+              return null;
+          }
+          
+        })}
+        </ul>
+      )}
       </Modal>
 
        {/* *******농산물정보보기모달(수확후)****** */} 
         <Modal open={info2Open} onClose={info2CloseModal} styles={styles}>
-        <div className="pt-5">
-          <div className="px-8 flex justify-center">  
-            <img src={cropImgUrl} alt="Crop" style={{ height: '100%', width: 'auto' }} /> 
+        <div className="pt-12">
+          <div className="px-8">  
+            <div className="flex justify-center w-64 h-32">
+              { selectImage? (<img src={selectImage} alt="Selected crop" style={{ height: '100%', width: 'auto' }} />
+              ) : (  <img src={cropImgUrl} alt="Crop" style={{ height: '100%', width: 'auto' }} />)}    
+            </div>
+            <div className="flex justify-around mt-2">
+              <div className="flex justify-center" onClick={handleFileInputClick}>
+                <div className="text-center mr-2 flex items-center font-bold">+수확사진등록</div>
+                <div className="flex items-center mt-2"><img src={Gallery} alt="" style={{ width:20 }}/></div>
+              </div>
+              <div onClick={handleUpload}>
+                <div className="btn btn-sm flex items-center">저장</div>
+              </div>
+            </div>
           </div>
-          <div className="px-8 mt-4">
+          <input
+            type="file"
+            id="hiddenFileInput"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+            
+          <div className="px-8 mt-6">
             <label for="price" class="block text-lg font-medium leading-6 text-gray-900">작물명</label>
             <div class="relative mt-2 rounded-md">
               <input type="text" name="price" id="price" class="block h-10 w-full rounded-md border-0 py-1.5 pl-2 pr-20 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" value={cropName} disabled/>
@@ -965,7 +1219,8 @@ export default function MyCrops(props) {
               <div className="font-bold" onClick={LifeRecordOpenModal}>농산물 생애기록 보기</div>
             </button>
           </div>
-          <div className="px-8 mt-5 flex justify-center">
+          {/* 검사및인증정보보는 버튼 */}
+          {/* <div className="px-8 mt-5 flex justify-center">
             <button className="btn w-56 flex justify-around" style={{ border:'3px solid #81C784',backgroundColor: 'transparent'}}
             onClick={TestOpenModal}>
               <img src={Gumsa} alt="" style={{width:40,height:30}}/>
@@ -978,7 +1233,7 @@ export default function MyCrops(props) {
               <img src={Inz} alt="" style={{width:40,height:30}}/>
               <div className="font-bold" >농산물 인증정보 확인</div>
             </button>
-          </div>
+          </div> */}
         </div>
       </Modal>
       {/* ******농산물검사정보모달******* */}
@@ -1056,7 +1311,7 @@ export default function MyCrops(props) {
 
       {/* ******생애기록추가모달******** */}
       <Modal open={addRecord} onClose={addRecordCloseModal} styles={styles}>
-      <div className="flex justify-center items-center pt-28">
+      <div className="flex justify-center items-center pt-16">
         <Menu as="div" className="relative inline-block text-left">
           <Menu.Button className="inline-flex w-full justify-center items-center gap-x-1.5 rounded-md
           bg-white px-12 py-3 text-xl text-gray-900 font-semibold
@@ -1109,35 +1364,29 @@ export default function MyCrops(props) {
           </Menu>
           </div>
           {/* 추가모달폼 */}
-          { selected ==='농약사용' && <Pesticide onRegister={addRecordCloseModal}/>}
-          { selected ==='지역대회수상' && <Award onRegister={addRecordCloseModal}/>}
+          { selected ==='농약사용' && <Pesticide cropId={cropId} onRegister={addRecordCloseModal}/>}
+          { selected ==='지역대회수상' && <Award  cropId={cropId} onRegister={addRecordCloseModal}/>}
           </Modal>
           
-          {/* 수확하기모달폼 */}
-          
+          {/* 수확하기모달폼 */}      
           <Modal open={harvestOpen} onClose={harvestCloseModal} styles={styles}>
-            <div className="pt-10">
-            <div className="px-8">
-              <div style={{ backgroundColor:'#bbbbbb',height:150,width:250 }} className="flex justify-center items-center">
-                <h1>+수확사진추가</h1>
-              </div>
-            </div>
+            <div className="mt-12">
             <div className="px-8 mt-4">
               <label for="price" class="block text-xl font-medium leading-6 text-gray-900">작물명</label>
               <div class="relative mt-2 rounded-md">
-                <input type="text" name="price" id="price" class="block h-10 w-full rounded-md border-0 py-1.5 pl-7 pr-20 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="작물명입력됨" disabled/>
+                <input type="text" name="price" id="price" class="block h-10 w-full rounded-md border-0 py-1.5 pl-7 pr-20 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" value={cropName} disabled/>
               </div>
             </div>
             <div className="px-8 mt-4">
               <label for="price" class="block text-xl font-medium leading-6 text-gray-900">재배지</label>
               <div class="relative mt-2 rounded-md">
-                <input type="text" name="price" id="price" class="block h-10 w-full rounded-md border-0 py-1.5 pl-7 pr-20 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="재배지입력됨" disabled/>
+                <input type="text" name="price" id="price" class="block h-10 w-full rounded-md border-0 py-1.5 pl-7 pr-20 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" value={cropCultivationSite} disabled/>
               </div>
             </div>
             <div className="px-8 mt-4">
               <label for="date" class="block text-xl font-medium leading-6 text-gray-900">심은날짜</label>
               <div class="relative mt-2 rounded-md">
-                <input type="text" name="price" id="price" class="block h-10 w-full rounded-md border-0 py-1.5 pl-7 pr-20 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="날짜입력됨" disabled />
+                <input type="text" name="price" id="price" class="block h-10 w-full rounded-md border-0 py-1.5 pl-7 pr-20 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" value={cropPlantingDate} disabled />
               </div>
             </div>
             <div className="px-8 mt-4">
@@ -1145,29 +1394,36 @@ export default function MyCrops(props) {
               <div class="relative mt-2 rounded-md">
                 <DatePicker
                 locale={ko}
-                selected={endDate}
-                dateFormat="yyyy년 MM월 dd일"
-                onChange={date => setEndDate(date)}
-                className="block h-10 w-full rounded-md border-0 py-1.5 pl-7 pr-20 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                selected={cropHarvestDate ? new Date(cropHarvestDate) : null}
+                dateFormat="yyyy-MM-dd"
+                onChange={date => setCropHarvestDate(date.toISOString().slice(0, 10))}
+                className="block h-10 w-full rounded-md 
+                 py-1.5 pl-7 pr-20
+                sm:text-sm sm:leading-6"
+                style={{border: '1px solid #1B5E20'}}
                 placeholderText="날짜를 선택하세요"
                 />
               </div>
             </div>
-            <div className="px-8 mt-10">
+            {/* <div className="px-8 mt-10">
               <button className="btn w-full flex justify-around" style={{ border:'1px solid #bbbbbb', backgroundColor: 'transparent'}}>
                 <div className="font-bold text-sm" onClick={ApiOpenModal}>+검사 및 인증정보 등록하기</div>
               </button>
-            </div> 
+            </div> */}
+            <div className="px-8 mt-10">
+              <button className="btn w-full flex justify-around" style={{ backgroundColor: '#1B5E20'}}
+              onClick={handleRegister}>
+                <div className="font-bold text-xl" style={{color:'white'}} >수확하기</div>
+              </button>
             </div>
-            <div style={{ position:'fixed', bottom: 0, left: 0, width: '100%', height: '75px', backgroundColor: '#1B5E20'}}
-              className="flex justify-center items-center"
-              onClick={harvestCloseModal}>
-              <h1 style={{color:'white'}} className="text-2xl">저장</h1>
             </div>
+            
+         
           </Modal>
 
+
+
           {/* 검사 및 인증정보 불러오기 모달 */}
-          
           <Modal open={apiOpen} onClose={ApiCloseModal} styles={styles}>
             <div className="pt-32">
               <div className="px-8 mt-4">
@@ -1190,6 +1446,17 @@ export default function MyCrops(props) {
                   </button>
                 </div>
               </div>      
+            </div>
+          </Modal>
+
+           {/* 수확시 대기화면모달 */}
+          <Modal open={stanbyModal} onClose={stanbyCloseModal} styles={styles} closeIcon={null}>
+            <div className="flex flex-col items-center justify-center min-h-screen">
+              <div><img src={CropStanby} alt="" style={{width:200}}/></div>
+              <div className="font-bold text-lg">
+                <h1 className="text-center">수확정보가 블록체인에 등록되고있어요</h1>
+                <h1 className="text-center">잠시만 기다려 주세요</h1>
+              </div>
             </div>
           </Modal>
 

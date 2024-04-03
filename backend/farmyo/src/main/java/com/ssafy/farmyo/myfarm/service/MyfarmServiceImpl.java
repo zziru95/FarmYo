@@ -15,6 +15,8 @@ import com.ssafy.farmyo.user.repository.UserRepository;
 import jakarta.mail.Multipart;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -66,10 +68,17 @@ public class MyfarmServiceImpl implements MyfarmService {
 
     @Transactional
     @Override
-    public void updateFarm(int id, String content, int status, List<MultipartFile> files, List<Integer> orders) {
+    public void updateFarmImage(int id, String content, List<MultipartFile> files, List<Integer> orders) {
         Farm farm = myfarmRepository.findById(id).orElseThrow(() -> new CustomException(ExceptionType.FARM_NOT_EXIST));
-        if (status == 1) { // status가 1이라면, 즉 사진을 변경했다면
-            myfarmImageRepository.deleteAllByFarmId(id);
+
+
+            // 기존 이미지 삭제
+            List<FarmImg> existingImages = myfarmImageRepository.getFarmImgeList(id);
+            if (!existingImages.isEmpty()) {
+                myfarmImageRepository.deleteAll(existingImages);
+                existingImages.forEach(farmImg -> awsS3Service.deleteFileByUrl(farmImg.getImgUrl()));
+            }
+
 
             if (files.size() != orders.size()) {
                 throw new CustomException(ExceptionType.ORDERS_NOT_MATCH);
@@ -87,17 +96,26 @@ public class MyfarmServiceImpl implements MyfarmService {
 
                 myfarmImageRepository.save(farmImg);
             }
-        } else { //사진을 변경하지 않았다면
-            myfarmRepository.updateFarm(id, content);
-        }
 
+    }
+
+    @Transactional
+    @Override
+    public void updateFarm(int id, String content) {
+        myfarmRepository.updateFarm(id, content);
     }
 
     @Transactional
     @Override
     public void deleteFarm(int id) {
         // 마이팜이 가지고 있는 이미지를 먼저 삭제
-        myfarmImageRepository.deleteAllByFarmId(id);
+        List<FarmImg> existingImages = myfarmImageRepository.getFarmImgeList(id);
+        if (!existingImages.isEmpty()) {
+            myfarmImageRepository.deleteAll(existingImages);
+            existingImages.forEach(farmImg -> awsS3Service.deleteFileByUrl(farmImg.getImgUrl()));
+        }
+
+//        myfarmImageRepository.deleteAllByFarmId(id);
         // 마이팜 게시글 삭제
         myfarmRepository.deleteById(id);
 
@@ -131,13 +149,13 @@ public class MyfarmServiceImpl implements MyfarmService {
 
     @Override
     @Transactional
-    public List<MyfarmListDto> getFarmList(String loginId) {
+    public List<MyfarmListDto> getFarmList(String loginId, int page, int size) {
         User user =  userRepository.findByLoginId(loginId).orElseThrow(() -> new CustomException(ExceptionType.USER_NOT_EXIST));
         if (user.getJob() != 0) {
             throw new CustomException(ExceptionType.USER_NOT_FARMER);
         }
 
-        List<Farm> farmList = myfarmRepository.findAllByUserId(user.getId());
+        Page<Farm> farmList = myfarmRepository.findAllByUserId(user.getId(), PageRequest.of(page, size));
         List<MyfarmListDto> resultList = new ArrayList<>();
 
         for (Farm farm : farmList) {

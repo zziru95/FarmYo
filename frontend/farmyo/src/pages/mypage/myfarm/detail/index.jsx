@@ -15,6 +15,7 @@ import Slider from "react-slick";
 import "../../../../css/slick.css"
 import { useLocation } from "react-router-dom"
 import Swal from "sweetalert2"
+import Gallery from '../../../../image/component/gallery.png'
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
@@ -41,10 +42,37 @@ export default function MyFarmDetail() {
   const [writeTime,setWriteTime] = useState('')
   const [farmContent,setFarmContent] = useState('')
   const [imageList,setImageList] = useState([])
+  const [updateList,setUpdateList] = useState([])
+  const [isImageUpdated, setIsImageUpdated] = useState(false)
+  const [flag, setFlag] = useState(false);
 
 
+  const [open,setOpen] = useState(false)
+  const onOpenModal = () => {
+    setOpen(true)
+  };
+
+  const onCloseModal = () => {
+    setOpen(false);
+  };
+
+  const styles = {
+    modal: {
+      maxWidth: '100%',
+      width: '100%',
+      height: '100%',
+      top: '0',
+      left: '0',
+      margin: '0',
+    },
+  };
+
+
+
+
+  //마이팜 상세 조회
   useEffect(()=>{
-    console.log(farmId)
+    // console.log(farmId)
     api.get('farms',{
       params :{
         id : farmId
@@ -54,14 +82,15 @@ export default function MyFarmDetail() {
       console.log(res)
       console.log('마이팜상세 조회성공')
       setWriter(res.data.dataBody.nickname)
-      setWriteTime(res.data.dataBody.updatedAt)
+      const formattedDate = res.data.dataBody.updatedAt.split('T')[0]
+      setWriteTime(formattedDate)
       setFarmContent(res.data.dataBody.farmContent)
       setImageList(res.data.dataBody.myfarmImageDtoList)
     })
     .catch((err)=>{
       console.log(err)
     })
-  },[])
+  },[flag])
 
   // 뒤로가기
   const goBack = () => {
@@ -89,7 +118,7 @@ export default function MyFarmDetail() {
       console.log(res)
       console.log('삭제성공')
       Swal.fire({
-        html: '<h1 style="font-weight: bold;">게시글이 삭제되었습니다</h1>',
+        html: '<h1 style="font-weight: bold;">삭제완료!</h1>',
         icon: 'success',
         showConfirmButton: false,
       });
@@ -98,6 +127,66 @@ export default function MyFarmDetail() {
     .catch((err)=>{
       console.log(err)
     })
+  }
+
+ // 마이팜게시물 수정
+  const handleUpdate = () =>{
+    console.log(imageList)
+    console.log(updateList)
+    const formData = new FormData();
+    formData.append('id', farmId);
+    formData.append('content', farmContent);
+ 
+    // 이미지가 수정되었을때 안되었을때 나눠서 api보냄
+    if (isImageUpdated) {
+      const orders = updateList.map((file, index) => index + 1); // int 형식
+      updateList.forEach((file, index) => {
+        formData.append('files', file);
+        formData.append('orders', index + 1);
+      });
+      api.put('farms/image',formData)
+      .then((res)=>{
+        console.log('수정성공')
+        setFlag(!flag)
+        Swal.fire({
+          html: '<h1 style="font-weight: bold;">수정완료!</h1>',
+          icon: 'success',
+          showConfirmButton: false,
+        });
+        onCloseModal()
+      })
+      .catch((err)=>{
+        console.log(err)
+      })
+    }else{
+      api.patch('farms',formData)
+      .then((res)=>{
+        console.log('수정성공')
+        setFlag(!flag)
+        Swal.fire({
+          html: '<h1 style="font-weight: bold;">수정완료!</h1>',
+          icon: 'success',
+          showConfirmButton: false,
+        });
+        onCloseModal()
+      })
+      .catch((err)=>{
+        console.log(err)
+      })
+    }
+  }
+  
+
+  const handleFileInputClick = () => {
+    // 숨겨진 file input을 클릭
+    document.getElementById('hiddenFileInput').click();
+  };
+
+  const handleFileChange = (event) =>{
+    const files = [...event.target.files];
+    setUpdateList(files); // updateList 상태 업데이트
+    setIsImageUpdated(true); // 이미지 업데이트 여부를 true로 설정
+    
   }
 
   return(
@@ -116,10 +205,6 @@ export default function MyFarmDetail() {
           ))}
         </Slider>
   
-
-
-
-
       <div className="p-5 flex justify-between">
         <div>
           <h1 className='font-bold text-lg'>{writer}</h1>
@@ -143,7 +228,7 @@ export default function MyFarmDetail() {
           >
           <Menu.Items className="absolute right-0 z-10 mt-2 w-28 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
             <div className="py-1">
-              <Menu.Item className="flex">
+              <Menu.Item className="flex" onClick={onOpenModal}>
                 {({ active }) => (
                   <a
                     href="#"
@@ -152,7 +237,8 @@ export default function MyFarmDetail() {
                       'block px-4 py-2 text-sm'
                     )}
                   >
-                    <img src={Edit} alt="" style={{width:20}}/>수정하기
+                    <img src={Edit} alt="" style={{width:20}}
+                   />수정하기
                   </a>
                 
                 )}
@@ -186,7 +272,68 @@ export default function MyFarmDetail() {
 
 
     {/* ******마이팜게시글 수정하기모달******** */}
+    <Modal open={open} onClose={onCloseModal} styles={styles}>
+    <div className='pt-16'>
+      {/* 미리보기사진위치 */}
+      <Slider {...settings} className="sliderTwo mb-10">
+        {isImageUpdated ? 
+          updateList.map((file, index) => (
+            <div key={index}>
+              {/* 파일 객체로부터 URL 생성 및 이미지 태그의 src 속성에 사용 */}
+              <img 
+                src={URL.createObjectURL(file)} 
+                alt={`Preview ${index}`} 
+                style={{ width: "100%", height: '150px' }} 
+              />
+            </div>
+          ))
+        :
+          imageList.map((image, index) => (
+            <div key={index}>
+              {/* 서버로부터 받은 이미지 URL 사용 */}
+              <img 
+                src={image.imageUrl} 
+                alt={`Image ${index}`} 
+                style={{ width: "100%", height: '150px' }} 
+              />
+            </div>
+          ))
+        }
+      </Slider>
+      <div className='flex justify-between'>
+      <div>
+  
+    </div>
+                  
+    {/* 마이팜게시물생성 사진불러오기 */}
+    <div className='flex items-center justify-between'>
+      <div className='flex' onClick={handleFileInputClick}>
+        <h1 className='font-bold'>+</h1>
+        <img src={Gallery} alt="" style={{ width:40 }} className='mr-3'/>
+      </div>
+    </div>
+    <input
+        type="file"
+        id="hiddenFileInput"
+        style={{ display: 'none' }}
+        multiple
+        onChange={handleFileChange}
+      />
 
+      </div>
+      <textarea className="textarea w-full h-28 textarea-bordered mt-10" 
+      placeholder="내용을 입력하세요" value={farmContent}
+      onChange={(e)=>setFarmContent(e.target.value)}></textarea>    
+      <button class="btn h-10 w-full rounded-md mt-5" style={{ backgroundColor:'#1B5E20'}}
+      onClick={handleUpdate}>
+        <h1 style={{ color:'white' }} className="text-lg"
+        >수정</h1>
+      </button>
+      </div>
+    </Modal>
   </div>
   )
 }
+
+
+
